@@ -1,6 +1,7 @@
 from openai import OpenAI
 import os
 from dotenv import load_dotenv, find_dotenv
+import json
 
 _ = load_dotenv(find_dotenv())
 
@@ -9,20 +10,19 @@ client = OpenAI(
     api_key=os.environ["OPENROUTER_API_KEY"],
 )
 
-itentions_dict = {
+intentions_dict = {
     "action": ["turn on", "turn off"],
-    "item": ["living room light", "air conditioning", "bedroom light"],
+    "item": ["light", "air conditioning","plug"],
+    "location": ["living room", "bedroom", "kitchen"]
 }
 
 
 def llm_inference(user_message, intentions_dict):
     """
-    This function analyzes recession fear sentiment of articles for a given date using an LLM.
-    The LLM is prompt to classify articles with a value between 1 and -1 (where 1 = high fear, -1 = no fear)
-
+    This function....
     Args:
-    article_dict (dictionary): A dictionary with a list of dictionaries. Structured as {Date:[{id:,content:}]}
-    max_attemps (int): A positive integer that sets how many retries the function will make in case the llm quota is exceded - API calls are free but rate limited
+    user_message (string): A string with the user message.
+    intentions_ dict (dictionary): A dictionary with a list of dictionaries
 
     Returns:
     list: A list of dictionaries with sentiment analysis and the most related sector results per article.
@@ -30,8 +30,27 @@ def llm_inference(user_message, intentions_dict):
 
     prompt = f"""
     
-    Analyze the following message from the user and identify if there's any intention present in the list of itentions below (even if they are related). 
-    The intention is combination of action and item, present in their respective lists.
+    You are tasked with analyzing the following user message to detect if it matches any of the intentions listed below.
+    
+    Each intention is defined as a combination of an **action**, **item**, and **location**, all of which must be present in the provided dictionary of intentions.
+    
+    **Instructions:**
+    1. House interaction detection:
+      1.1. If the user's message expresses an intention related to house interaction (matching the dictionary of intentions), extract the action, item, and location.
+      1.2. If the message lacks sufficient information to extract all three (action, item, and location), DO NOT output "None" or leave fields empty.
+           Instead, respond by asking the user politely to clarify ONLY the missing part(s), and leave the missing fields out of the output for now.
+    
+    2. General conversation:
+      2.1. If the user's message is unrelated to house interaction, respond helpfully and concisely without asking about action, item, or location.
+      2.2. In this case, you may answer normally without any clarification request.
+    
+    3. Unclear messages:
+      3.1. If the user's message is too vague or unclear, politely acknowledge it and invite the user to rephrase or clarify.
+    
+    **Important Notes:**
+    - NEVER output fields with "None" or leave them blank.
+    - ALWAYS follow the JSON output structure exactly.
+    - ONLY include the fields you are confident about. If something is missing, ask the user to specify it in the "message" field.
     
     **User message:**
     {user_message}
@@ -39,12 +58,14 @@ def llm_inference(user_message, intentions_dict):
     **Dictionary of intentions:**
     {intentions_dict}
     
-    **Output format:**
-    Respond **only** with a JSON dictionary, structured as follows:  
-    ```json
-    [{{"message": <your message> which should have should be short and concise except when told otherwise, 
-      "action": <action that is implicit in the user message, and present in the Dictionary of itentions, a pair of the key "action">, 
-      "item": <the item related that is implicit in the user message, and present in the Dictionary of itentions, a pair of the key "item">}}]
+    **Output Format:**
+    Respond strictly with a JSON dictionary structured as:
+    
+    message: "<Short reply or clarification request>",
+    action: "<matched action if available>",
+    item: "<matched item if available>",
+    location: "<matched location if available>"
+
     
     """
 
@@ -54,7 +75,7 @@ def llm_inference(user_message, intentions_dict):
         messages=[
             {
                 "role": "system",
-                "content": "You are a helpful home assistant, named Jarvis. You have a positive atitude.",
+                "content": "You are a helpful home assistant, named Jarvis. You're funny and have a positive atitude.",
             },
             {"role": "user", "content": prompt},
         ],
@@ -63,9 +84,22 @@ def llm_inference(user_message, intentions_dict):
 
     return llm_response
 
+llm_response = llm_inference("can you please switch on the light in the bedroom?", intentions_dict)
 
-print(
-    llm_inference(
-        "Please turn on the lights in the living room", itentions_dict
-    )
-)
+# Output handling
+llm_response_curated = llm_response.choices[0].message.content
+llm_response_json = json.loads(llm_response_curated)
+
+llm_response_message = llm_response_json['message']
+llm_response_action = llm_response_json['action']
+llm_response_item = llm_response_json['item']
+llm_response_location = llm_response_json['location']
+
+print(llm_response_json)
+
+"""
+print(f"{llm_response_message} \n\
+      action: {llm_response_action} \n\
+          item: {llm_response_item} \n\
+              location: {llm_response_location}")
+"""

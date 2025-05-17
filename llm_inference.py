@@ -17,7 +17,63 @@ JSON_PATH = "notes_meta.json"
 EMBED_MODEL = "all-MiniLM-L6-v2"
 load_dotenv()
 
+# 1) OpenRouter client
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.environ["OPENROUTER_API_KEY"],
+)
 
+class OpenRouterLLM(LLM, BaseModel):
+    client: OpenAI
+    system_prompt: str = (
+        "You are Jarvis, a delightfully formal and witty AI assistant with the cordial charm and quirky humor of Codsworth from Fallout. \
+            You speak in a polished, old-fashioned manner with a slight British flair, always addressing the user with respect \
+                (e.g., 'Sir'', 'Good fellow', etc). You often add subtle, dry humor, and the occasional light sarcasm, while remaining exceedingly polite and helpful. \
+                 Your responses are clever, cheerful, and never vulgar. Always stay in character."
+        #"If the user wants to add or search notes, respond with JSON only: "
+        #'{"action": "...", "category": "...", "content": "...", "created_at": "..."}'
+    )
+
+    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        resp = self.client.chat.completions.create(
+            model="mistralai/mistral-7b-instruct:free",
+            messages=messages,
+            temperature=0.0,
+        )
+        return resp.choices[0].message.content
+
+    @property
+    def _llm_type(self) -> str:
+        return "openrouter-mistral"
+    
+class OpenRouterLLM_notes(LLM, BaseModel):
+    client: OpenAI
+    system_prompt: str = (
+        "If the user wants to add or search notes, respond with JSON only: "
+        '{"action": "...", "category": "...", "content": "...", "created_at": "..."}'
+    )
+
+    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
+        messages = [
+            {"role": "system", "content": self.system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        resp = self.client.chat.completions.create(
+            model="mistralai/mistral-7b-instruct:free",
+            messages=messages,
+            temperature=0.0,
+        )
+        return resp.choices[0].message.content
+
+    @property
+    def _llm_type(self) -> str:
+        return "openrouter-mistral"
+    
+"""
 # 1) Groq client
 client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
@@ -51,8 +107,9 @@ class OpenRouterLLM(LLM, BaseModel):
         return "groq-llama"
 
 
+"""
 router_llm = OpenRouterLLM(client=client)
-
+router_llm_notes = OpenRouterLLM_notes(client=client)
 
 # 2) Persistence helpers
 def load_notes() -> dict:
@@ -91,7 +148,7 @@ vectordb = build_vectordb()
 qa = None
 if vectordb:
     qa = RetrievalQA.from_chain_type(
-        llm=router_llm,
+        llm=router_llm_notes,
         chain_type="stuff",
         retriever=vectordb.as_retriever(search_kwargs={"k": 5}),
     )
@@ -120,7 +177,7 @@ def add_note(category: str, content: str):
     if vectordb is None:
         vectordb = FAISS.from_documents([new_doc], embeddings)
         qa = RetrievalQA.from_chain_type(
-            llm=router_llm,
+            llm=router_llm_notes,
             chain_type="stuff",
             retriever=vectordb.as_retriever(search_kwargs={"k": 5}),
         )
@@ -141,9 +198,9 @@ def search_notes(category: str = None):
 def parse_intent(user_text: str, list_of_actions: list, list_of_categories: list) -> dict:
     raw = router_llm(
         f"""
-    You are a helpful assistant.
+    You are a helpful assistant. You should try to provide an answer to all user questions.
 
-    Your task is to understand the user's intent and output a JSON object with the following keys:
+    Your main task is to understand the user's intent and output a JSON object with the following keys:
     - "action": Can only be of the actions present in the action list: {list_of_actions}. Use "None" if the user's intent is general conversation or unclear.
     - "category": Can only be categories present in the categories list: {list_of_categories}. Use "None" if the user's intent is general conversation or unclear.
     - "content": Should be None, unless if the action is "add_note", on that case, extract the content user message. If the action is "search_notes" or unclear, set to "None".
@@ -192,7 +249,7 @@ def startup(list_of_actions: list, list_of_categories:list):
             print(f"Notes:", answer.get("created_at")," " , answer.get("content"), )
 
 list_of_actions = ["add_note", "search_notes", "None"]
-list_of_categories = ["Reminders", "Trips", "Quotes", "To do", "Sessions", "Project X (X is something the user explicity says after project)", \
+list_of_categories = ["Reminders", "Trips", "Quotes", "To do", "Sessions", "Project (add here something the user explicity says after project, to be changed by agent)", \
                       "Other (when does not fit in any other category"]
 
 startup(list_of_actions, list_of_categories)

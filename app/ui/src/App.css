@@ -40,3 +40,57 @@
 .read-the-docs {
   color: #888;
 }
+
+/* App.css */
+
+.App {
+  max-width: 600px;
+  margin: 2rem auto;
+  font-family: sans-serif;
+}
+
+/* chat box as before... */
+.chat-box {
+  background: #f6f2f2;
+  border: auto solid #ccc;
+  height: auto;
+  overflow-y: auto;
+  padding: auto;
+  margin-bottom: 1rem;
+}
+
+/* Text input row */
+.text-controls {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.text-controls input {
+  flex: 1;
+  padding: 0.5rem;
+}
+
+/* Audio controls underneath */
+
+.toggle-mic {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.device-select {
+  flex: 1;
+  padding: 0.3rem;
+}
+
+.record-btn {
+  padding: 0.5rem 1rem;
+}
+
+/* Simple status line */
+.status {
+  font-size: 0.9rem;
+  color: #555;
+}

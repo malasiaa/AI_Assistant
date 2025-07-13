@@ -64,7 +64,7 @@ def record_audio():
         recording = np.concatenate(temp, axis=0)
 
 
-def reco_transcribe ():
+def cli_reco_transcribe ():
     
     global recording, is_recording
     running = True
@@ -112,4 +112,4 @@ def reco_transcribe ():
     
 
 if __name__ == '__main__':
-    reco_transcribe()
+    cli_reco_transcribe()

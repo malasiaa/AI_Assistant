@@ -1,0 +1,19 @@
+# Runtime dependencies, listed from the imports in app/.
+# Versions are intentionally not pinned yet: pin them after a clean-environment install test.
+fastapi
+uvicorn[standard]
+python-multipart
+python-dotenv
+openai
+pydantic
+openai-whisper
+# Notes memory (legacy LangChain import paths are used in app/core/llm_inference.py)
+langchain<0.3
+langchain-community<0.3
+sentence-transformers
+faiss-cpu
+# Optional: push-to-talk CLI in app/core/speech_text.py
+sounddevice
+scipy
+numpy
+keyboard

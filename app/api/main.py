@@ -1,4 +1,5 @@
 import tempfile, os, time, logging
+from pathlib import Path
 from logging.handlers import RotatingFileHandler
 import shutil
 from fastapi import FastAPI, File, UploadFile, Request
@@ -21,7 +22,9 @@ logger = logging.getLogger("api_logger")
 logger.setLevel(logging.INFO)
 
 # Rotate after 5 MB, keep 3 backups
-handler = RotatingFileHandler(r"app\api\logs\api.log", maxBytes=5*1024*1024, backupCount=3)
+LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+handler = RotatingFileHandler(LOG_DIR / "api.log", maxBytes=5*1024*1024, backupCount=3)
 handler.setFormatter(logging.Formatter(
     "%(asctime)s | %(levelname)s | %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
@@ -31,12 +34,16 @@ logger.addHandler(handler)
 
 app = FastAPI()
 
-# CORS (so frontend can access it locally)
+# CORS: only the local frontend may call the API. Override with CORS_ORIGINS in .env.
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # or ["http://localhost:3000"]
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
 )
 

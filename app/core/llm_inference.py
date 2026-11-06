@@ -1,5 +1,6 @@
 # %% Imports
-import os, json, time
+import os, json, time, logging
+from pathlib import Path
 from uuid import uuid4
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -11,9 +12,14 @@ from langchain.llms.base import LLM
 from pydantic import BaseModel
 from typing import Optional, List
 
+from app.core.json_utils import extract_json
+
+logger = logging.getLogger(__name__)
+
 #%% Config & startup
 # ─── config & startup ─────────────────────────────────────────────────────
-JSON_PATH = r"app\database\notes_meta.json"
+# Notes are stored next to the app, independent of the working directory / OS.
+JSON_PATH = Path(__file__).resolve().parents[1] / "database" / "notes_meta.json"
 EMBED_MODEL = "all-MiniLM-L6-v2"
 load_dotenv()
 
@@ -113,13 +119,14 @@ router_llm_notes = OpenRouterLLM_notes(client=client)
 
 # 2) Persistence helpers
 def load_notes() -> dict:
-    if not os.path.exists(JSON_PATH):
-        with open(JSON_PATH, "w", encoding="utf-8") as f:
-            json.dump({}, f, ensure_ascii=False, indent=2)
-    return json.load(open(JSON_PATH, "r", encoding="utf-8"))
+    if not JSON_PATH.exists():
+        save_notes({})
+    with open(JSON_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
 
 
 def save_notes(notes: dict):
+    JSON_PATH.parent.mkdir(parents=True, exist_ok=True)  # create app/database on first run
     with open(JSON_PATH, "w", encoding="utf-8") as f:
         json.dump(notes, f, ensure_ascii=False, indent=2)
 
@@ -191,7 +198,11 @@ def search_notes(category: str = None):
         return "No notes available yet."
     prompt = f'(category="{category}")'
     notes = qa.run(prompt)
-    return json.loads(notes)
+    try:
+        return extract_json(notes)
+    except ValueError:
+        # The model answered in prose instead of JSON: still return something usable.
+        return {"content": notes}
 
 
 # 5) Intent parser
@@ -217,8 +228,18 @@ def parse_intent(user_text: str, list_of_actions: list, list_of_categories: list
     User: {user_text}
     """
     )
-    print(raw)
-    return json.loads(raw)
+    logger.debug("LLM raw output: %s", raw)
+    try:
+        intent = extract_json(raw)
+    except ValueError:
+        # Free models sometimes ignore the JSON instruction; treat it as plain chat.
+        return {"action": "None", "category": "None", "content": "None",
+                "response": raw.strip() or "My apologies, I could not form a reply."}
+    intent.setdefault("action", "None")
+    intent.setdefault("category", "None")
+    intent.setdefault("content", "None")
+    intent.setdefault("response", "Quite so.")
+    return intent
 
 #%% Main loop
 

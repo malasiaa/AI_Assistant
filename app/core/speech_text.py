@@ -11,23 +11,15 @@ import whisper
 from dotenv import load_dotenv, find_dotenv
 _ = load_dotenv(find_dotenv())
 
-API_URL = "https://router.huggingface.co/hf-inference/models/openai/whisper-large-v3"
-headers = {"Authorization":f"Bearer {os.environ['HUGGINGFACE_API_KEY']}"}
-
-# Whisper call function
-
-"""
-def transcribe(audio_path):
-    with open(audio_path, "rb") as f:
-        data = f.read()
-    response = requests.post(API_URL, headers={"Content-Type": "audio/wav", **headers}, data=data)
-    return response.json()
-"""
+# Local Whisper transcription (no API key needed).
+_model = None
 
 def transcribe(audio_path):
-    model = whisper.load_model("base") #Choose model here: https://pypi.org/project/openai-whisper/
-    result = model.transcribe(audio_path)
-    print(result)
+    global _model
+    if _model is None:
+        _model = whisper.load_model("base")  # Choose model here: https://pypi.org/project/openai-whisper/
+    result = _model.transcribe(audio_path)
+    return result["text"]
 
 # Recording
 fs = 16000
